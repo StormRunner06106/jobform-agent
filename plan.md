@@ -1,6 +1,6 @@
 # Job Form Agent — Plan
 
-Design only; implementation has not started.
+Initial development implementation is underway. See [README.md](README.md) for setup, checks, and current limitations. Release logging remains inactive until explicitly requested; see [versions.md](versions.md).
 
 Repository: [StormRunner06106/jobform-agent](https://github.com/StormRunner06106/jobform-agent)
 
@@ -186,4 +186,4 @@ Keep trusted application instructions separate from page text and source documen
 
 Use synthetic profiles for tests, then verify one selected job site without submitting. Initial scope is Windows, Native Messaging, and Codex. Claude, additional document formats, and automatic uploads can follow.
 
-Before implementation: provide the knowledge-folder path and choose the first target job site.
+Before live application testing: provide the knowledge-folder path and choose the first target job site.

@@ -4,7 +4,15 @@
 
 This project is a Chrome job-application form assistant using a locally installed Codex CLI and Alex's filesystem context. Codex is the first provider; Claude is a later adapter option.
 
-Read `plan.md` before changing the design. The current user request authorizes planning documents (`plan.md` and this `AGENTS.md`), `.gitignore`, and committing and pushing these files. Do not create application code, scaffolding, dependency manifests, installers, or executable scripts until the user requests implementation. Documentation edits do not require application tests; review their consistency and diff.
+Read `plan.md` before changing the design. Implementation is now authorized, including the extension, companion, setup scripts, version setter, and relevant tests. Commit and push completed changes under the workflow below.
+
+## Version policy
+
+- Release logging is inactive until the user explicitly commands the first version log. Do not start it merely because implementation, a build, or a commit is requested.
+- On that first command, run `node scripts/version.mjs start --message "..."` to record 0.0.1. On later explicit version/upgrade logging requests, run `next` with a meaningful message.
+- Count patch and minor digits from 0 through 9: 0.0.9 → 0.1.0; 0.9.9 → 1.0.0. Never auto-bump from a build, test, hook, or commit.
+- `version-state.json` is the machine-readable source; the setter synchronizes `versions.md`, package.json, and the extension manifest. Development placeholders are not releases.
+- Test version mutations only in temporary fixtures. Never run start/next on this checkout without the user's explicit logging request.
 
 ## GitHub destination
 

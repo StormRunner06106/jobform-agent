@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Job Form Agent",
+  "description": "Fill job application forms using verified local knowledge and Codex.",
+  "version": "0.0.0.1",
+  "version_name": "Development — unreleased",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "scripting", "storage", "sidePanel", "nativeMessaging", "webNavigation"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Open Job Form Agent" },
+  "side_panel": { "default_path": "panel.html" }
+}

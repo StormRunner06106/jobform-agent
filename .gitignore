@@ -48,3 +48,5 @@ Desktop.ini
 /tmp/
 /temp/
 *.tmp
+.version.lock
+*.version-tmp
