@@ -2,7 +2,7 @@
 
 ## Current scope
 
-This project is a Chrome job-application form assistant using a locally installed Claude Code or Codex CLI and Alex's filesystem context.
+This project is a Chrome job-application form assistant using a locally installed Codex CLI and Alex's filesystem context. Codex is the first provider; Claude is a later adapter option.
 
 Read `plan.md` before changing the design. The current user request authorizes planning documents (`plan.md` and this `AGENTS.md`), `.gitignore`, and committing and pushing these files. Do not create application code, scaffolding, dependency manifests, installers, or executable scripts until the user requests implementation. Documentation edits do not require application tests; review their consistency and diff.
 
@@ -31,6 +31,10 @@ Automatic Git actions apply to this development repository only. They do not aut
 
 ## Implementation principles once requested
 
+- Preserve the four-stage pipeline in `plan.md`: Connector and Health Checker, Job Page Checker, Receiver and Filler, Retrier and Finalizer.
+- Reuse the application's Codex thread across turns and retries. Only the companion may report health code 200 after a completed validated health turn; model text alone is not a health result.
+- Keep the full form inventory locally and send only unresolved eligible questions to the agent. Preserve user-prefilled values and exclude their records from generation requests.
+- Track frame/document identity, live validation, upload status, and per-question audit outcomes. Retry only within the plan's bounds; finalization shows a popup and scrolls to Submit without activating it.
 - Keep provider-specific CLI behavior behind adapters and validate every model response before use.
 - Keep Alex's context read-only and outside this repository. Do not commit resumes, personal profiles, CLI credentials, raw application snapshots, private logs, or generated context caches.
 - Resolve paths safely and enforce context access outside the prompt. Never execute project code or hooks simply because the agent is reading a project.
