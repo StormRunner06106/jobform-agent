@@ -1,0 +1,50 @@
+# Local dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+.ssh/
+.codex/
+.claude/
+*.pem
+*.key
+*.p12
+*.pfx
+id_ed25519*
+id_rsa*
+
+# Private applicant data and runtime state (prefer storing outside this repo)
+/context/
+/private-context/
+/profiles/
+/resumes/
+/application-snapshots/
+/runtime-data/
+/sessions/
+/logs/
+.cache/
+*.log
+*.pid
+*.sqlite
+*.sqlite3
+
+# Machine-specific editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+
+# Temporary files
+/tmp/
+/temp/
+*.tmp
