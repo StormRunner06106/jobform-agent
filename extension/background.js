@@ -1,4 +1,7 @@
+import { createDiagnostics, errorCode } from './diagnostics.js';
+const diagnostics = createDiagnostics('extension');
 const HOST = 'com.jobform.agent';
+diagnostics.log('worker.started', { extensionId: chrome.runtime.id });
 let native, boundTab, busy = false, epoch = 0, selectedRegion, application;
 let snapshots = [], sequence = 0;
 const pending = new Map();
@@ -6,13 +9,16 @@ const state = { connected: false, connectionStatus: 'idle', contextReady: false,
 const broadcast = () => chrome.runtime.sendMessage({ type: 'state', state }).catch(() => {});
 function update(patch) { Object.assign(state, patch); broadcast(); }
 function audit(label, status, reason = '') {
+  diagnostics.log('fill.outcome', { phase: status });
   state.audit.push({ time: new Date().toLocaleTimeString(), label, status, reason });
   state.audit = state.audit.slice(-200); broadcast();
 }
 function connectNative() {
   if (native) return;
+  diagnostics.log('native.connect');
   native = chrome.runtime.connectNative(HOST);
   native.onMessage.addListener(message => {
+    diagnostics.log('native.message', { requestId: message.id, phase: message.event, code: message.result?.code, error: message.ok === false ? errorCode(message.error) : undefined }, message.ok === false ? 'error' : 'info');
     if (message.event === 'progress') { update({ stage: message.stage, message: message.message }); return; }
     const call = pending.get(message.id); if (!call) return;
     clearTimeout(call.timer); pending.delete(message.id);
@@ -20,6 +26,7 @@ function connectNative() {
   });
   native.onDisconnect.addListener(() => {
     const reason = chrome.runtime.lastError?.message ?? 'Companion disconnected.';
+    diagnostics.log('native.disconnected', { error: errorCode(reason) }, 'error');
     native = null; epoch++;
     for (const call of pending.values()) { clearTimeout(call.timer); call.reject(new Error(reason)); }
     pending.clear(); update({ connected: false, connectionStatus: 'error', contextReady: false, running: false, message: `${reason} Click Load knowledge to reconnect.` });
@@ -29,13 +36,16 @@ function callHost(type, payload = {}) {
   connectNative();
   return new Promise((resolve, reject) => {
     const id = String(++sequence);
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error('Companion request timed out.')); }, 120000);
+    diagnostics.log('native.request', { requestId: id, operation: type });
+    const timer = setTimeout(() => { diagnostics.log('native.timeout', { requestId: id, operation: type }, 'error'); pending.delete(id); reject(new Error('Companion request timed out.')); }, 120000);
     pending.set(id, { resolve, reject, timer });
-    native.postMessage({ id, type, payload });
+    try { native.postMessage({ id, type, payload }); }
+    catch (error) { clearTimeout(timer); pending.delete(id); diagnostics.log('native.send_failed', { requestId: id, error: errorCode(error) }, 'error'); reject(error); }
   });
 }
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  diagnostics.log('page.active', { phase: /^https?:/.test(tab?.url ?? '') ? 'http' : 'unavailable' });
   if (!tab || !/^https?:/.test(tab.url ?? '')) throw new Error('Open a job application on an HTTP or HTTPS page.');
   return tab;
 }
@@ -50,6 +60,7 @@ async function pageCall(frameId, method, argument) {
   return Array.isArray(value) ? { outcomes: value } : { ...value, frameId, documentId: results[0].documentId };
 }
 async function scan() {
+  diagnostics.log('scan.started');
   const tab = await chrome.tabs.get(boundTab);
   if (getApplication(tab.url) !== application) throw new Error('Page changed. Click Load for this application.');
   const frames = await chrome.webNavigation.getAllFrames({ tabId: boundTab });
@@ -59,12 +70,13 @@ async function scan() {
       await chrome.scripting.executeScript({ target: { tabId: boundTab, frameIds: [frame.frameId] }, files: ['scanner.js'] });
       const snapshot = await pageCall(frame.frameId, 'scan', selectedRegion);
       snapshots.push(snapshot);
-    } catch { blocked++; }
+    } catch (error) { blocked++; diagnostics.log('scan.frame_failed', { frameId: frame.frameId, error: errorCode(error) }, 'error'); }
   }
   const regions = snapshots.flatMap(s => s.regions.map(r => ({ ...r, frameId: s.frameId })));
   if (!selectedRegion && regions.length === 1) selectedRegion = regions[0].id;
   const relevant = snapshots.filter(s => s.regionId === selectedRegion);
   const questions = relevant.flatMap(s => s.questions.map(q => ({ ...q, frameId: s.frameId, documentId: s.documentId })));
+  diagnostics.log('scan.completed', { frames: snapshots.length, blockedFrames: blocked, questions: questions.length });
   update({ stage: 2, regions, questions, blockedFrames: blocked, selectedRegion, message: !regions.length ? 'No form found. Check site access or wait for the page to load.' : regions.length > 1 && !selectedRegion ? 'Choose the application form below.' : `${questions.filter(q => q.state === 'complete').length} of ${questions.length} questions already complete.` });
   return relevant;
 }
@@ -130,6 +142,8 @@ chrome.action.onClicked.addListener(async tab => { boundTab = tab.id; await chro
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   // Only the extension's own panel may start privileged operations.
   if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('panel.html')) return;
+  const operationStarted = Date.now();
+  diagnostics.log('panel.request', { operation: message.type });
   (async () => {
     if (message.type === 'getState') return state;
     if (message.type === 'origins') {
@@ -160,6 +174,6 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       else throw new Error('Unknown operation.');
       return state;
     } finally { busy = false; }
-  })().then(result => respond({ ok: true, result })).catch(error => { update({ message: error.message }); respond({ ok: false, error: error.message }); });
+  })().then(result => { diagnostics.log('panel.completed', { operation: message.type, elapsedMs: Date.now() - operationStarted }); respond({ ok: true, result }); }).catch(error => { diagnostics.log('panel.failed', { operation: message.type, error: errorCode(error), errorType: error.name, elapsedMs: Date.now() - operationStarted }, 'error'); update({ message: error.message }); respond({ ok: false, error: error.message }); });
   return true;
 });

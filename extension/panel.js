@@ -1,6 +1,12 @@
+import { createDiagnostics, errorCode } from './diagnostics.js';
+const diagnostics = createDiagnostics('panel');
+diagnostics.log('panel.opened');
+window.addEventListener('error', event => diagnostics.log('panel.script_error', { error: errorCode(event.message), errorType: event.error?.name }, 'error'));
+window.addEventListener('unhandledrejection', event => diagnostics.log('panel.rejected', { error: errorCode(event.reason), errorType: event.reason?.name }, 'error'));
 const $ = id => document.getElementById(id);
 let filter = 'all', latest, shownSummary, accessOrigins = [];
 async function send(type, extra = {}) {
+  diagnostics.log('ui.request', { operation: type });
   const response = await chrome.runtime.sendMessage({ type, ...extra });
   if (!response?.ok) throw new Error(response?.error ?? 'Extension is unavailable. Reload it.');
   return response.result;
@@ -32,7 +38,7 @@ function render(state) {
   $('audit').replaceChildren(...state.audit.map(e => { const li = document.createElement('li'); li.textContent = `${e.time} · ${e.label} · ${e.status}${e.reason ? ' — ' + e.reason : ''}`; return li; }));
   if (state.summary && !state.running && state.summary !== shownSummary) { shownSummary = state.summary; $('finalTitle').textContent = state.message; $('finalMessage').textContent = state.summary; $('finalizer').showModal(); }
 }
-function action(id, handler) { $(id).addEventListener('click', () => handler().catch(e => { $('status').textContent = e.message; })); }
+function action(id, handler) { $(id).addEventListener('click', () => { diagnostics.log('ui.click', { operation: id }); handler().catch(e => { diagnostics.log('ui.failed', { operation: id, error: errorCode(e), errorType: e.name }, 'error'); $('diagnostics').open = true; $('status').textContent = e.message; }); }); }
 action('load', async () => { const settings = { contextRoot: $('contextRoot').value.trim() }; await chrome.storage.local.set({ settings }); render(await send('load', { settings })); });
 action('access', async () => { if (!accessOrigins.length) throw new Error('Open an application page first.'); if (await chrome.permissions.request({ origins: accessOrigins })) $('status').textContent = 'Site access granted. Load or rescan the page.'; });
 action('scan', async () => render(await send('scan')));
@@ -49,3 +55,18 @@ send('getState').then(render).catch(e => { $('status').textContent = e.message; 
 async function refreshOrigins() { try { accessOrigins = await send('origins'); $('access').disabled = !accessOrigins.length; } catch { accessOrigins = []; $('access').disabled = true; } }
 void refreshOrigins();
 window.addEventListener('focus', refreshOrigins);
+async function diagnosticRows() {
+  const saved = await chrome.storage.local.get(['diagnostics-extension', 'diagnostics-panel']);
+  return [...(saved['diagnostics-extension'] ?? []), ...(saved['diagnostics-panel'] ?? [])].sort((a, b) => a.time.localeCompare(b.time));
+}
+async function renderDiagnostics() {
+  const rows = await diagnosticRows();
+  $('diagnosticOutput').textContent = rows.slice(-80).map(row => `${row.time.slice(11, 23)} ${row.source} ${row.event}${row.operation ? ' ' + row.operation : ''}${row.error ? ' [' + row.error + ']' : ''}`).join('\n') || 'Waiting for events…';
+  $('diagnosticOutput').scrollTop = $('diagnosticOutput').scrollHeight;
+}
+chrome.storage.onChanged.addListener(() => void renderDiagnostics().catch(() => {}));
+void renderDiagnostics().catch(() => {});
+action('exportLogs', async () => {
+  const url = URL.createObjectURL(new Blob([(await diagnosticRows()).map(row => JSON.stringify(row)).join('\n')], { type: 'application/x-ndjson' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'jobform-diagnostics.jsonl'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+});

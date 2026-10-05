@@ -23,7 +23,8 @@ test('connection states distinguish idle, failed health, and connected with a pa
       get: async () => { throw new Error('Application tab closed.'); },
     },
   };
-  runInNewContext(await readFile(new URL('../extension/background.js', import.meta.url), 'utf8'), { chrome, URL, setTimeout, clearTimeout });
+  const source = (await readFile(new URL('../extension/background.js', import.meta.url), 'utf8')).replace(/^import .*\n/, '');
+  runInNewContext(source, { chrome, URL, setTimeout, clearTimeout, createDiagnostics: () => ({ log() {} }), errorCode: () => 'test_error' });
   const send = type => new Promise(resolve => listener({ type, settings: { contextRoot: 'C:/Knowledge' } }, { id: chrome.runtime.id, url: chrome.runtime.getURL('panel.html') }, resolve));
   assert.equal((await send('getState')).result.connectionStatus, 'idle');
   const failure = await send('load');

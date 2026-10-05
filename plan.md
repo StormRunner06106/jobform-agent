@@ -104,6 +104,8 @@ Automatically fill supported factual and narrative answers grounded in the knowl
 
 Audit each action with time, question ID, attempt, source IDs, and verification result. Keep answer previews in memory; redact personal values from persistent logs. Stop must prevent late results from writing to the page.
 
+Persist separate diagnostic events for panel actions, worker requests, Native Messaging, Codex protocol phases, health checks and scans. Show a live diagnostic view and downloadable logs in the drawer. A loopback-only log receiver captures extension failures independently of the native companion; the companion also writes rotating local logs. Record only operational metadata and classified errors, never applicant content or credentials.
+
 ### 4. Retrier and Finalizer
 
 Rescan the whole application region, not just the last request. Retry only empty eligible questions or invalid extension-generated answers untouched by the user. Never resend completed questions or overwrite user-prefilled data.

@@ -26,6 +26,7 @@
       <ul id="questions"><li class="empty">Your application questions will appear here.</li></ul>
     </section>
     <details><summary>Activity log</summary><ol id="audit"></ol></details>
+    <details id="diagnostics"><summary>Diagnostic logs</summary><p class="hint">Live connection events are saved across reloads. No form answers or knowledge contents are logged.</p><button id="exportLogs">Download logs</button><pre id="diagnosticOutput" aria-live="polite"></pre></details>
   </main>
   <footer><span>Your final review comes first.</span><div class="row"><button id="run" class="primary" disabled>Run autofill <span>→</span></button><button id="stop" disabled>Stop</button></div></footer>
   <dialog id="finalizer"><h2 id="finalTitle"></h2><p id="finalMessage"></p><button id="closeFinal" class="primary">Review application</button></dialog>

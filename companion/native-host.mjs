@@ -6,9 +6,12 @@ import { resolveCodex } from './resolve-codex.mjs';
 import { MessageDecoder, encodeMessage } from './framing.mjs';
 import { loadContext, verifyContext, retrieve } from './context.mjs';
 import { healthSchema, answerSchema, validateAnswer, filterQuestions } from './contract.mjs';
+import { log } from './logging.mjs';
+import { errorCode } from '../extension/diagnostics.js';
 
 const origin = process.argv[2];
-if (!/^chrome-extension:\/\/[a-p]{32}\/$/.test(origin ?? '')) process.exit(1);
+log('host.started');
+if (!/^chrome-extension:\/\/[a-p]{32}\/$/.test(origin ?? '')) { log('host.invalid_origin', {}, 'error'); process.exit(1); }
 const home = join(process.env.LOCALAPPDATA ?? homedir(), 'jobform-agent', 'codex');
 const clientVersion = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')).version;
 const write = value => process.stdout.write(encodeMessage(value));
@@ -17,13 +20,17 @@ const sessionPath = join(home, `${origin.split('/')[2]}.session.json`);
 setInterval(() => { if (!busy && Date.now() - lastOperation > 8 * 60 * 60 * 1000) { client?.close(); process.exit(0); } }, 60000).unref();
 const decoder = new MessageDecoder();
 async function checkHealth() {
+  log('health.started');
   const answer = await client.turn('hi, are you healthy now?', healthSchema);
   if (answer?.healthy !== true || typeof answer.acknowledgement !== 'string' || !answer.acknowledgement.trim()) throw new Error('Agent health check failed.');
   lastHealth = Date.now();
+  log('health.completed', { code: 200 });
 }
 async function handle(message) {
   const { id, type, payload = {} } = message;
   if (typeof id !== 'string') return;
+  const started = Date.now();
+  log('request.received', { requestId: id, operation: type });
   if (type === 'cancel') { generation++; client?.interrupt(); write({ id, ok: true, result: { stopped: true } }); return; }
   if (type === 'ping') { write({ id, ok: true, result: { connected: Boolean(client?.threadId), healthyAt: lastHealth } }); return; }
   if (busy) { write({ id, ok: false, error: 'Companion is busy.' }); return; }
@@ -36,11 +43,15 @@ async function handle(message) {
       client?.close(); context = null; lastHealth = 0;
       write({ event: 'progress', stage: 1, message: 'Reading local knowledge' });
       context = await loadContext(payload.contextRoot);
-      client = new CodexClient({ executable: await resolveCodex(), home, clientVersion, onProgress: () => {} });
+      log('context.loaded', { requestId: id, documents: context.documents.length });
+      const executable = await resolveCodex();
+      log('codex.resolved', { requestId: id });
+      client = new CodexClient({ executable, home, clientVersion, onProgress: () => {}, onDiagnostic: log });
       let saved;
       try { saved = JSON.parse(await readFile(sessionPath, 'utf8')); } catch { /* First connection. */ }
       const resume = saved?.fingerprint === context.fingerprint && saved?.application === payload.application && saved?.root === context.root ? saved.threadId : null;
       await client.connect(resume);
+      log('codex.connected', { requestId: id, phase: resume ? 'resumed' : 'created' });
       await checkHealth();
       application = payload.application;
       await writeFile(sessionPath, JSON.stringify({ root: context.root, fingerprint: context.fingerprint, application, threadId: client.threadId }));
@@ -58,12 +69,15 @@ async function handle(message) {
     } else throw new Error('Unknown companion operation.');
     if (generation !== currentGeneration) throw new Error('Operation cancelled.');
     write({ id, ok: true, result });
+    log('request.completed', { requestId: id, operation: type, elapsedMs: Date.now() - started });
   } catch (error) {
+    log('request.failed', { requestId: id, operation: type, error: errorCode(error), errorType: error.name, elapsedMs: Date.now() - started }, 'error');
     lastHealth = 0;
     if (type === 'load') { client?.close(); context = null; }
     write({ id, ok: false, error: String(error.message).slice(0, 700) });
   } finally { busy = false; }
 }
-process.stdin.on('data', chunk => { try { for (const message of decoder.push(chunk)) void handle(message); } catch { client?.close(); process.exit(1); } });
-process.stdin.on('end', () => { client?.close(); process.exit(0); });
+process.stdin.on('data', chunk => { try { for (const message of decoder.push(chunk)) void handle(message); } catch { log('host.invalid_frame', {}, 'error'); client?.close(); process.exit(1); } });
+process.stdin.on('end', () => { log('host.stdin_closed'); client?.close(); process.exit(0); });
+process.on('uncaughtException', error => { log('host.crashed', { error: errorCode(error), errorType: error.name }, 'error'); client?.close(); process.exit(1); });
 process.on('SIGTERM', () => { client?.close(); process.exit(0); });

@@ -53,7 +53,7 @@ test('real Chrome scanner preserves answers, fills groups, verifies and never su
 test('side-panel UI renders in Chrome without console exceptions', async t => {
   const b = await browser(t); if (!b) return;
   const initial = { connected: false, contextReady: false, running: false, stage: 0, message: 'Choose your knowledge folder to get started.', questions: [], regions: [], audit: [], blockedFrames: 0, summary: null };
-  await b.call('Page.addScriptToEvaluateOnNewDocument', { source: `window.chrome={runtime:{id:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',getManifest:()=>({version_name:'Development — unreleased'}),sendMessage:async message=>{window.lastPanelMessage=message;return {ok:true,result:${JSON.stringify(initial)}}},onMessage:{addListener(callback){window.onPanelState=callback}}},storage:{local:{get:async()=>({settings:{contextRoot:'C:/Knowledge',codexPath:'C:/old/codex.exe'}}),set:async value=>{window.savedPanelSettings=value.settings}}}};window.panelErrors=[];window.addEventListener('error',e=>panelErrors.push(e.message));window.addEventListener('unhandledrejection',e=>panelErrors.push(String(e.reason)));` });
+  await b.call('Page.addScriptToEvaluateOnNewDocument', { source: `window.panelStored={settings:{contextRoot:'C:/Knowledge',codexPath:'C:/old/codex.exe'}};window.chrome={runtime:{id:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',getManifest:()=>({version_name:'Development — unreleased'}),sendMessage:async message=>{window.lastPanelMessage=message;return {ok:true,result:${JSON.stringify(initial)}}},onMessage:{addListener(callback){window.onPanelState=callback}}},storage:{onChanged:{addListener(callback){window.onStorageChanged=callback}},local:{get:async keys=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(key=>[key,window.panelStored[key]])),set:async value=>{Object.assign(window.panelStored,value);if(value.settings)window.savedPanelSettings=value.settings;window.onStorageChanged?.(value,'local')}}}};window.panelErrors=[];window.addEventListener('error',e=>panelErrors.push(e.message));window.addEventListener('unhandledrejection',e=>panelErrors.push(String(e.reason)));` });
   await b.call('Emulation.setDeviceMetricsOverride', { width: 420, height: 1050, deviceScaleFactor: 1, mobile: false });
   await b.call('Page.navigate', { url: pathToFileURL(resolve(ROOT, 'extension/panel.html')).href });
   for (let i = 0; i < 30; i++) {
@@ -78,6 +78,12 @@ test('side-panel UI renders in Chrome without console exceptions', async t => {
     assert.equal(await b.evaluate('document.querySelector("#status").textContent'), state.message);
   }
   await b.evaluate('window.onPanelState(' + JSON.stringify({ type: 'state', state: initial }) + ')');
+  for (let i = 0; i < 30; i++) {
+    if (await b.evaluate('document.querySelector("#diagnosticOutput").textContent.includes("ui.click")')) break;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.match(await b.evaluate('document.querySelector("#diagnosticOutput").textContent'), /ui.click load/);
+  assert.doesNotMatch(await b.evaluate('document.querySelector("#diagnosticOutput").textContent'), /C:\/Knowledge/);
   await mkdir(resolve(ROOT, 'dist'), { recursive: true });
   const screenshot = await b.call('Page.captureScreenshot', { format: 'png' });
   await writeFile(resolve(ROOT, 'dist/panel-preview.png'), Buffer.from(screenshot.data, 'base64'));

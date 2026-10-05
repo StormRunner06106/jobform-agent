@@ -3,9 +3,11 @@ import { mkdir, access } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { isAbsolute, join } from 'node:path';
 import { INSTRUCTIONS } from './contract.mjs';
+import { errorCode } from '../extension/diagnostics.js';
 
 export class CodexClient {
-  constructor({ executable, home, clientVersion = '0.0.0', onProgress = () => {}, spawnProcess = spawn }) {
+  constructor({ executable, home, clientVersion = '0.0.0', onProgress = () => {}, onDiagnostic = () => {}, spawnProcess = spawn }) {
+    this.log = onDiagnostic;
     this.executable = executable; this.home = home; this.onProgress = onProgress; this.spawnProcess = spawnProcess;
     this.sequence = 0; this.pending = new Map(); this.active = null; this.threadId = null; this.clientVersion = clientVersion;
   }
@@ -20,8 +22,9 @@ export class CodexClient {
     const args = ['app-server', '--listen', 'stdio://', '-c', 'web_search="disabled"', '-c', 'project_doc_max_bytes=0', '-c', 'mcp_servers={}', '-c', 'notify=[]'];
     for (const feature of features) args.push('-c', `features.${feature}=false`);
     this.process = this.spawnProcess(this.executable, args, { cwd, env: { ...process.env, CODEX_HOME: this.home }, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
-    this.process.on('error', e => this.failAll(new Error(`Codex could not start: ${e.message}`)));
-    this.process.on('exit', () => this.failAll(new Error('Codex disconnected. Load again to reconnect.')));
+    this.log('codex.spawned');
+    this.process.on('error', e => { this.log('codex.spawn_failed', { error: errorCode(e) }, 'error'); this.failAll(new Error(`Codex could not start: ${e.message}`)); });
+    this.process.on('exit', code => { this.log('codex.exited', { code }); this.failAll(new Error('Codex disconnected. Load again to reconnect.')); });
     this.process.stderr.on('data', () => {}); // Never forward raw CLI diagnostics or credentials to Chrome.
     this.reader = createInterface({ input: this.process.stdout });
     this.reader.on('line', line => { try { if (line.length > 2_000_000) throw new Error('Oversized Codex event.'); this.receive(JSON.parse(line)); } catch { this.failAll(new Error('Invalid Codex protocol output.')); this.process.kill(); } });
@@ -36,7 +39,8 @@ export class CodexClient {
   request(method, params, timeout = 20000) {
     return new Promise((resolve, reject) => {
       const id = ++this.sequence;
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`Codex ${method} timed out.`)); }, timeout);
+      this.log('codex.rpc_sent', { requestId: String(id), operation: method.replaceAll('/', '.') });
+      const timer = setTimeout(() => { this.log('codex.rpc_timeout', { requestId: String(id), operation: method.replaceAll('/', '.') }, 'error'); this.pending.delete(id); reject(new Error(`Codex ${method} timed out.`)); }, timeout);
       this.pending.set(id, { resolve, reject, timer });
       this.send({ id, method, params });
     });
@@ -50,6 +54,7 @@ export class CodexClient {
       const call = this.pending.get(message.id);
       if (!call) return;
       clearTimeout(call.timer); this.pending.delete(message.id);
+      this.log('codex.rpc_received', { requestId: String(message.id), error: message.error ? errorCode(message.error.message) : undefined }, message.error ? 'error' : 'info');
       if (message.error) call.reject(new Error(String(message.error.message).slice(0, 500))); else call.resolve(message.result);
       return;
     }
@@ -61,6 +66,7 @@ export class CodexClient {
     if (message.method === 'item/completed' && params.item?.type === 'agentMessage') active.lastMessage = params.item.text;
     if (message.method === 'item/agentMessage/delta') this.onProgress('Agent is preparing answers');
     if (message.method === 'turn/completed') {
+      this.log('codex.turn_completed', { phase: params.turn.status, error: params.turn.error ? errorCode(params.turn.error.message) : undefined });
       clearTimeout(active.timer); this.active = null;
       if (params.turn.status !== 'completed') active.reject(new Error(params.turn.error?.message ?? 'Codex turn did not complete. Check login and model access.'));
       else { try { active.resolve(JSON.parse(active.lastMessage)); } catch { active.reject(new Error('Codex returned malformed structured output.')); } }
