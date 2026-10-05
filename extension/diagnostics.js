@@ -33,7 +33,7 @@ export function safeRecord(input) {
     if (typeof input[key] === 'string' && /^[a-zA-Z0-9_.:-]{1,100}$/.test(input[key])) output[key] = input[key];
   }
   output.time = Number.isFinite(Date.parse(input.time)) ? new Date(input.time).toISOString() : new Date().toISOString();
-  for (const key of ['elapsedMs', 'frameId', 'frames', 'blockedFrames', 'questions', 'documents', 'code', 'pid']) {
+  for (const key of ['elapsedMs', 'frameId', 'frames', 'blockedFrames', 'regions', 'questions', 'documents', 'code', 'pid']) {
     if (Number.isFinite(input[key])) output[key] = input[key];
   }
   return output;

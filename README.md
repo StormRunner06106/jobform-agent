@@ -33,6 +33,7 @@ The companion is registered only for this extension ID under the current Windows
 - Connects to Codex app-server, runs the health prompt, and reuses an application thread; matching saved sessions resume on Load.
 - Reads a bounded, read-only Markdown/text knowledge index and retrieves relevant excerpts with source IDs.
 - Scans visible native HTML forms, radio groups, checkboxes, selects, and accessible frames. Preserves existing answers and sends only pending questions to the agent.
+- Detects Ashby's application tab layout without a `<form>` tag, including sibling demographic sections and Submit. Custom Ashby yes/no and checkbox groups are listed for manual review; the separate resume-autofill helper is excluded.
 - Validates structured answers, fills supported fields, verifies retained values, and reports an activity log.
 - Makes at most three passes. Reports unresolved questions or scrolls to an identified Submit/Next button without clicking it.
 

@@ -76,6 +76,8 @@ Wait for page load and a stable form region, including delayed rendering. Use a 
 
 Locate the application section through forms, groups, headings, and controls. Highlight it; let the user choose when multiple regions are ambiguous. Scan permitted iframes independently and retain frame/document identity. Missing frame access is a blocker, not an empty form. [Chrome content scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts).
 
+For Ashby, detect the application container and its enclosing tab panel even when there is no form tag or application keyword in the title. Include sibling demographic sections and Submit, exclude the resume-autofill helper, and list custom choice groups for manual review until their filling adapters are implemented.
+
 Maintain a complete inventory locally:
 
 | Capture | Details |

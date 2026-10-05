@@ -69,6 +69,7 @@ async function scan() {
     try {
       await chrome.scripting.executeScript({ target: { tabId: boundTab, frameIds: [frame.frameId] }, files: ['scanner.js'] });
       const snapshot = await pageCall(frame.frameId, 'scan', selectedRegion);
+      diagnostics.log('scan.frame_completed', { frameId: frame.frameId, regions: snapshot.regions.length, questions: snapshot.questions.length });
       snapshots.push(snapshot);
     } catch (error) { blocked++; diagnostics.log('scan.frame_failed', { frameId: frame.frameId, error: errorCode(error) }, 'error'); }
   }
@@ -76,7 +77,7 @@ async function scan() {
   if (!selectedRegion && regions.length === 1) selectedRegion = regions[0].id;
   const relevant = snapshots.filter(s => s.regionId === selectedRegion);
   const questions = relevant.flatMap(s => s.questions.map(q => ({ ...q, frameId: s.frameId, documentId: s.documentId })));
-  diagnostics.log('scan.completed', { frames: snapshots.length, blockedFrames: blocked, questions: questions.length });
+  diagnostics.log('scan.completed', { frames: snapshots.length, blockedFrames: blocked, regions: regions.length, questions: questions.length });
   update({ stage: 2, regions, questions, blockedFrames: blocked, selectedRegion, message: !regions.length ? 'No form found. Check site access or wait for the page to load.' : regions.length > 1 && !selectedRegion ? 'Choose the application form below.' : `${questions.filter(q => q.state === 'complete').length} of ${questions.length} questions already complete.` });
   return relevant;
 }
@@ -84,6 +85,7 @@ async function stableScan() {
   const started = Date.now(); let previous;
   while (Date.now() - started < 20000) {
     const snapshots = await scan();
+    if (state.regions.length > 1 && !selectedRegion) return snapshots;
     const current = JSON.stringify(snapshots.map(s => s.questions.map(q => [q.id, q.state, q.currentValue, q.feedback])));
     if (current === previous && state.questions.length) return snapshots;
     previous = current; await new Promise(resolve => setTimeout(resolve, 750));

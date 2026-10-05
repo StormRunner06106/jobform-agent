@@ -50,6 +50,45 @@ test('real Chrome scanner preserves answers, fills groups, verifies and never su
   assert.equal(await b.evaluate('document.querySelector("#email").value'), 'user@example.test');
 });
 
+test('Ashby div layouts include sibling sections and custom questions without treating resume autofill as a field', async t => {
+  const b = await browser(t); if (!b) return;
+  await b.html(`<!doctype html><title>Senior Engineer @ Example</title><h1>Senior Engineer</h1>
+    <div role="tabpanel">
+      <div class="ashby-application-form-autofill-uploader"><h2>Autofill from resume</h2><input type="file"></div>
+      <div class="ashby-application-form-container">
+        <div class="ashby-application-form-field-entry"><label for="full-name">Full Name</label><input id="full-name" value="Already entered" required></div>
+        <label>Email<input type="email" required></label><label>Resume<input type="file" required></label>
+        <fieldset><label class="ashby-application-form-question-title _required_fixture">Work preference</label><label><input type="radio" name="work" value="remote">Remote</label><label><input type="radio" name="work" value="office">Office</label></fieldset>
+        <div class="ashby-application-form-field-entry"><label class="ashby-application-form-question-title _required_fixture">Sponsorship</label><div class="ashby-application-form-input-yesno"><button aria-pressed="false">Yes</button><button aria-pressed="false">No</button><input type="checkbox" style="display:none"></div></div>
+        <fieldset class="ashby-application-form-input-checkbox-group"><label class="ashby-application-form-question-title _required_fixture">How did you hear about us?</label><label><input type="checkbox">Website</label><label><input type="checkbox">Referral</label></fieldset>
+      </div>
+      <section><fieldset><label class="ashby-application-form-question-title">Optional survey</label><label><input type="radio" name="survey" value="yes">Yes</label><label><input type="radio" name="survey" value="no">No</label></fieldset></section>
+      <button onclick="window.submitted=true">Submit Application</button>
+    </div>`);
+  await b.evaluate('globalThis.jobformScanner = { scan: () => ({ regions: [], questions: [] }) }');
+  await b.evaluate(await readFile(resolve(ROOT, 'extension/scanner.js'), 'utf8'));
+  const result = await b.evaluate('jobformScanner.scan()');
+  await b.evaluate(await readFile(resolve(ROOT, 'extension/scanner.js'), 'utf8'));
+  assert.deepEqual((await b.evaluate('jobformScanner.scan()')).questions.map(q => q.id), result.questions.map(q => q.id));
+  assert.equal(result.regions.length, 1);
+  assert.equal(result.regions[0].title, 'Application form');
+  assert.equal(result.questions.length, 7);
+  assert.equal(result.questions.filter(q => q.kind === 'upload').length, 1);
+  assert.equal(result.questions.find(q => q.label === 'Full Name').state, 'complete');
+  const work = result.questions.find(q => q.label === 'Work preference');
+  assert.equal(work.required, true);
+  assert.deepEqual(work.options.map(option => option.label), ['Remote', 'Office']);
+  for (const label of ['Sponsorship', 'How did you hear about us?']) {
+    const question = result.questions.find(q => q.label === label);
+    assert.equal(question.kind, 'unsupported');
+    assert.equal(question.state, 'needs-user');
+    assert.equal(question.required, true);
+  }
+  assert.equal(result.questions.find(q => q.label === 'Optional survey').required, false);
+  assert.equal((await b.evaluate(`jobformScanner.finish(${JSON.stringify(result.regionId)})`)).target, 'submit');
+  assert.equal(await b.evaluate('Boolean(window.submitted)'), false);
+});
+
 test('side-panel UI renders in Chrome without console exceptions', async t => {
   const b = await browser(t); if (!b) return;
   const initial = { connected: false, contextReady: false, running: false, stage: 0, message: 'Choose your knowledge folder to get started.', questions: [], regions: [], audit: [], blockedFrames: 0, summary: null };
