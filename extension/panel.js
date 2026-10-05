@@ -17,8 +17,8 @@ function render(state) {
   $('agentBadge').textContent = state.connected ? 'Agent healthy' : state.connectionStatus === 'connecting' ? 'Agent connecting…' : state.connectionStatus === 'error' ? 'Connection failed' : 'Agent not connected yet';
   $('contextBadge').textContent = state.contextReady ? 'Context ready' : 'Context not loaded';
   $('agentBadge').classList.toggle('good', state.connected); $('contextBadge').classList.toggle('good', state.contextReady);
-  $('run').disabled = state.running || !state.connected || !state.contextReady || !state.questions.length || !state.selectedRegion || Boolean(state.blockedFrames);
-  $('stop').disabled = !state.running; $('load').disabled = state.running || state.connectionStatus === 'connecting'; $('scan').disabled = state.running || !state.connected;
+  $('run').disabled = state.processing || state.running || !state.connected || !state.contextReady || !state.questions.length || !state.selectedRegion || Boolean(state.blockedFrames);
+  $('stop').disabled = !state.running; $('load').disabled = state.processing || state.running || state.connectionStatus === 'connecting'; $('scan').disabled = state.processing || state.running || !state.connected;
   document.querySelectorAll('[data-stage]').forEach(el => { const stage = Number(el.dataset.stage); el.classList.toggle('done', stage < state.stage); el.classList.toggle('active', stage === state.stage); el.querySelector('.stageStatus').textContent = stage < state.stage ? 'Done' : stage === state.stage ? 'Active' : 'Waiting'; });
   $('region').hidden = $('regionLabel').hidden = state.regions.length < 2;
   $('region').replaceChildren(new Option('Choose application form', ''), ...state.regions.map(r => new Option(`${r.title} · frame ${r.frameId}`, r.id)));

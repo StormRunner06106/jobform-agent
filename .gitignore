@@ -29,6 +29,7 @@ id_rsa*
 /runtime-data/
 /sessions/
 /logs/
+/benchmark-results/
 .cache/
 *.log
 *.pid

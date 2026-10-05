@@ -3,14 +3,23 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test test/*.test.mjs",
     "logs": "node scripts/watch-logs.mjs",
+    "benchmark": "node scripts/benchmark.mjs",
     "version:status": "node scripts/version.mjs status",
     "version:start": "node scripts/version.mjs start",
     "version:next": "node scripts/version.mjs next"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "esbuild": "^0.28.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   }
 }

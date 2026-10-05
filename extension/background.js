@@ -155,7 +155,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     }
     if (message.type === 'stop') { epoch++; await callHost('cancel').catch(() => {}); update({ running: false, message: 'Stopped. Existing answers are preserved.' }); return state; }
     if (busy) throw new Error('An operation is already running.');
-    busy = true;
+    busy = true; update({ processing: true });
     try {
       if (message.type === 'load') {
         const tab = await activeTab(); boundTab = tab.id; application = getApplication(tab.url); selectedRegion = null;
@@ -175,7 +175,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       else if (message.type === 'run') await run();
       else throw new Error('Unknown operation.');
       return state;
-    } finally { busy = false; }
+    } finally { busy = false; update({ processing: false }); }
   })().then(result => { diagnostics.log('panel.completed', { operation: message.type, elapsedMs: Date.now() - operationStarted }); respond({ ok: true, result }); }).catch(error => { diagnostics.log('panel.failed', { operation: message.type, error: errorCode(error), errorType: error.name, elapsedMs: Date.now() - operationStarted }, 'error'); update({ message: error.message }); respond({ ok: false, error: error.message }); });
   return true;
 });

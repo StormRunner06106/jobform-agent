@@ -49,4 +49,6 @@ test('answers require matching snapshots, known sources, exact choices and lengt
   assert.throws(() => validateAnswer(answer, request, []), /evidence/);
   const textRequest = { ...request, questions: [{ id: 'q', kind: 'text', label: 'Essay', minLength: 3001 }] };
   assert.throws(() => validateAnswer(answer, textRequest, [{ id: 'src' }]), /length/);
+  const multipleRequest = { ...request, questions: [{ ...request.questions[0], kind: 'many', required: true }] };
+  assert.throws(() => validateAnswer({ ...answer, results: [{ ...answer.results[0], value: [] }] }, multipleRequest, [{ id: 'src' }]), /multiple-choice/);
 });

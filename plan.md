@@ -76,7 +76,7 @@ Wait for page load and a stable form region, including delayed rendering. Use a 
 
 Locate the application section through forms, groups, headings, and controls. Highlight it; let the user choose when multiple regions are ambiguous. Scan permitted iframes independently and retain frame/document identity. Missing frame access is a blocker, not an empty form. [Chrome content scripts](https://developer.chrome.com/docs/extensions/develop/concepts/content-scripts).
 
-For Ashby, detect the application container and its enclosing tab panel even when there is no form tag or application keyword in the title. Include sibling demographic sections and Submit, exclude the resume-autofill helper, and list custom choice groups for manual review until their filling adapters are implemented.
+For Ashby, detect the application container and its enclosing tab panel even when there is no form tag or application keyword in the title. Include sibling demographic sections and Submit and exclude the resume-autofill helper. Scan Yes/No buttons as a single-choice question and grouped checkboxes as a multiple-choice question. Use click events so React records the selection, preserve prefilled groups, and verify the requested selection after rendering.
 
 Maintain a complete inventory locally:
 
@@ -189,5 +189,7 @@ Keep trusted application instructions separate from page text and source documen
 | Finalizer | Bounded retries, new conditional fields, blockers respected, correct scroll without submission |
 
 Use synthetic profiles for tests, then verify one selected job site without submitting. Initial scope is Windows, Native Messaging, and Codex. Claude, additional document formats, and automatic uploads can follow.
+
+Run `npm run benchmark` for an end-to-end Playwright pipeline: real extension panel → native companion → Codex → React form → expected-versus-actual review. Run both main-page and iframe scenarios. Compare saved React state and DOM values, verify conditional-field retries and preserved answers, and retain screenshots, traces and reports outside Git. Fix failures and rerun until every benchmark check passes; keep manual upload/consent/CAPTCHA requirements explicit rather than scoring them as autofilled.
 
 Before live application testing: provide the knowledge-folder path and choose the first target job site.

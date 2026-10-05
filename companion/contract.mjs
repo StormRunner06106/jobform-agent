@@ -46,7 +46,7 @@ export function validateAnswer(answer, request, evidence) {
     if (!result.sources.length) throw new Error('Answer has no supporting source.');
     const v = result.value;
     if (q.kind === 'boolean') { if (typeof v !== 'boolean') throw new Error('Expected a boolean answer.'); }
-    else if (q.kind === 'many') { if (!Array.isArray(v) || new Set(v).size !== v.length || v.some(x => !q.options.some(o => o.id === x && !o.disabled))) throw new Error('Invalid multiple-choice answer.'); }
+    else if (q.kind === 'many') { if (!Array.isArray(v) || (q.required && !v.length) || new Set(v).size !== v.length || v.some(x => !q.options.some(o => o.id === x && !o.disabled))) throw new Error('Invalid multiple-choice answer.'); }
     else if (typeof v !== 'string' || !v.trim() || v.length > 20000) throw new Error('Expected a nonempty string answer.');
     if (q.kind === 'one' && !q.options.some(o => o.id === v && !o.disabled)) throw new Error('Invalid option.');
     if (q.kind === 'text' && ((q.minLength && v.length < q.minLength) || (q.maxLength && v.length > q.maxLength))) throw new Error(`Answer violates length requirements for ${q.label}.`);

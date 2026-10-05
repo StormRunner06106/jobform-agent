@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { ROOT } from './version.mjs';
 async function check(dir) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
-    if (e.name.startsWith('.') || ['node_modules', 'dist'].includes(e.name)) continue;
+    if (e.name.startsWith('.') || ['node_modules', 'dist', 'benchmark-results'].includes(e.name)) continue;
     const path = resolve(dir, e.name);
     if (e.isDirectory()) await check(path);
     else if (/\.(mjs|js)$/.test(e.name)) {

@@ -59,7 +59,7 @@ test('Ashby div layouts include sibling sections and custom questions without tr
         <div class="ashby-application-form-field-entry"><label for="full-name">Full Name</label><input id="full-name" value="Already entered" required></div>
         <label>Email<input type="email" required></label><label>Resume<input type="file" required></label>
         <fieldset><label class="ashby-application-form-question-title _required_fixture">Work preference</label><label><input type="radio" name="work" value="remote">Remote</label><label><input type="radio" name="work" value="office">Office</label></fieldset>
-        <div class="ashby-application-form-field-entry"><label class="ashby-application-form-question-title _required_fixture">Sponsorship</label><div class="ashby-application-form-input-yesno"><button aria-pressed="false">Yes</button><button aria-pressed="false">No</button><input type="checkbox" style="display:none"></div></div>
+        <div class="ashby-application-form-field-entry"><label class="ashby-application-form-question-title _required_fixture">Sponsorship</label><div class="ashby-application-form-input-yesno"><button type="button" data-option="yes" aria-pressed="false" onclick="this.setAttribute('aria-pressed','true')">Yes</button><button type="button" data-option="no" aria-pressed="false" onclick="this.setAttribute('aria-pressed','true')">No</button><input type="checkbox" style="display:none"></div></div>
         <fieldset class="ashby-application-form-input-checkbox-group"><label class="ashby-application-form-question-title _required_fixture">How did you hear about us?</label><label><input type="checkbox">Website</label><label><input type="checkbox">Referral</label></fieldset>
       </div>
       <section><fieldset><label class="ashby-application-form-question-title">Optional survey</label><label><input type="radio" name="survey" value="yes">Yes</label><label><input type="radio" name="survey" value="no">No</label></fieldset></section>
@@ -80,10 +80,18 @@ test('Ashby div layouts include sibling sections and custom questions without tr
   assert.deepEqual(work.options.map(option => option.label), ['Remote', 'Office']);
   for (const label of ['Sponsorship', 'How did you hear about us?']) {
     const question = result.questions.find(q => q.label === label);
-    assert.equal(question.kind, 'unsupported');
-    assert.equal(question.state, 'needs-user');
+    assert.equal(question.kind, label === 'Sponsorship' ? 'one' : 'many');
+    assert.equal(question.state, 'pending');
     assert.equal(question.required, true);
   }
+  const sponsorship = result.questions.find(q => q.label === 'Sponsorship');
+  const referral = result.questions.find(q => q.label === 'How did you hear about us?');
+  const answers = [{ id: sponsorship.id, disposition: 'fill', value: sponsorship.options[1].id }, { id: referral.id, disposition: 'fill', value: referral.options.map(o => o.id) }];
+  const outcomes = await b.evaluate(`jobformScanner.apply(${JSON.stringify(answers)})`);
+  assert.ok(outcomes.every(row => row.state === 'filled'));
+  const after = await b.evaluate('jobformScanner.scan()');
+  assert.equal(after.questions.find(q => q.id === sponsorship.id).state, 'complete');
+  assert.equal(after.questions.find(q => q.id === referral.id).state, 'complete');
   assert.equal(result.questions.find(q => q.label === 'Optional survey').required, false);
   assert.equal((await b.evaluate(`jobformScanner.finish(${JSON.stringify(result.regionId)})`)).target, 'submit');
   assert.equal(await b.evaluate('Boolean(window.submitted)'), false);

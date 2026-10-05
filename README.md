@@ -4,7 +4,7 @@ A Chrome side panel that uses a local Codex companion and selected Markdown/text
 
 ## Run locally (Windows)
 
-1. Use Node.js 22 or newer and an installed Codex executable. There are no npm dependencies.
+1. Use Node.js 22 or newer and an installed Codex executable. Runtime has no npm dependencies; `npm ci` installs the development benchmark tools.
 2. Run `node scripts/check.mjs`, `node --test test/*.test.mjs`, and `node scripts/build.mjs`.
 3. Open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose `dist/extension`.
 4. Register the companion once. The installer detects this checkout's extension ID from Chrome or reuses the saved registration:
@@ -33,7 +33,7 @@ The companion is registered only for this extension ID under the current Windows
 - Connects to Codex app-server, runs the health prompt, and reuses an application thread; matching saved sessions resume on Load.
 - Reads a bounded, read-only Markdown/text knowledge index and retrieves relevant excerpts with source IDs.
 - Scans visible native HTML forms, radio groups, checkboxes, selects, and accessible frames. Preserves existing answers and sends only pending questions to the agent.
-- Detects Ashby's application tab layout without a `<form>` tag, including sibling demographic sections and Submit. Custom Ashby yes/no and checkbox groups are listed for manual review; the separate resume-autofill helper is excluded.
+- Detects Ashby's application tab layout without a `<form>` tag, including sibling demographic sections and Submit. Fills Ashby Yes/No and grouped checkboxes using click events, and verifies the selected state. The separate resume-autofill helper is excluded.
 - Validates structured answers, fills supported fields, verifies retained values, and reports an activity log.
 - Infers experience estimates (such as backend/frontend split) from related project evidence when an exact answer is absent. Chooses the closest supported option and shows an `Inferred:` explanation in the activity log. Exact personal, legal and sensitive facts require direct evidence.
 - Makes at most three passes. Reports unresolved questions or scrolls to an identified Submit/Next button without clicking it.
@@ -55,6 +55,22 @@ The companion uses its own Codex home so it does not inherit the coding checkout
 Sequence: `0.0.1 … 0.0.9 → 0.1.0 … 0.9.9 → 1.0.0`. The setter synchronizes the log and manifests; build/tests/commits never increment versions. Rebuild after a version change. `0.0.0` (package) and `0.0.0.1` (Chrome) are unreleased development placeholders.
 
 ## Verification
+
+### Automated Playwright benchmark
+
+After the companion is registered and signed in:
+
+```powershell
+npm ci
+npx playwright install chromium
+npm run benchmark
+```
+
+The benchmark builds and loads the real unpacked extension in an isolated Playwright Chromium profile, opens its actual panel, clicks Load and Run, and uses the installed native companion and signed-in Codex CLI. It sends only the synthetic profile in `benchmark/profile.md`. Local React forms reproduce Ashby's controls, both on the main page and inside an iframe. No native messaging or model responses are mocked. Setup uses Playwright's [extension testing workflow](https://playwright.dev/docs/chrome-extensions).
+
+Every run compares React's saved state and visible DOM values against explicit expectations, including radio groups, native and grouped checkboxes, Yes/No buttons, selects, multi-selects, text, and a conditional field revealed during filling. It checks preserved answers, completion and no submission. A mismatch exits nonzero. These autofill scenarios exclude resume uploads, consent and CAPTCHA, which remain manual and are covered as blockers in the scanner tests.
+
+Reports, per-field expected/actual results, screenshots, diagnostic logs and a Playwright `trace.zip` are saved under ignored `benchmark-results/<timestamp>/`; `benchmark-results/latest.json` contains the last result. Open a trace with `npx playwright show-trace <path-to-trace.zip>`. The benchmark uses real model inference, so it needs network access and can consume account usage. It never fills or submits a live employer application.
 
 ### Live diagnostic logs
 
