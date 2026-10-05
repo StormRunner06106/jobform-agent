@@ -124,7 +124,7 @@ async function run() {
         if (frameNow?.documentId !== q.documentId) throw new Error('Application frame changed. Scan again.');
         update({ message: `Filling ${q.label}` });
         const outcome = await pageCall(q.frameId, 'apply', [result]);
-        for (const row of outcome.outcomes) audit(q.label, row.state, row.reason);
+        for (const row of outcome.outcomes) audit(q.label, row.state, [row.reason, result.reason].filter(Boolean).join(' · '));
       }
       update({ stage: 4, message: 'Checking the form after filling' });
     }

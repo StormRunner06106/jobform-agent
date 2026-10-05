@@ -5,7 +5,7 @@ import { CodexClient } from './codex.mjs';
 import { resolveCodex } from './resolve-codex.mjs';
 import { MessageDecoder, encodeMessage } from './framing.mjs';
 import { loadContext, verifyContext, retrieve } from './context.mjs';
-import { healthSchema, answerSchema, validateAnswer, filterQuestions } from './contract.mjs';
+import { healthSchema, answerSchema, validateAnswer, filterQuestions, INFERENCE_POLICY } from './contract.mjs';
 import { log } from './logging.mjs';
 import { errorCode } from '../extension/diagnostics.js';
 
@@ -64,7 +64,7 @@ async function handle(message) {
       const request = { runId: payload.runId, snapshotId: payload.snapshotId, questions: filterQuestions(payload.questions) };
       if (!request.questions.length) throw new Error('No pending questions.');
       const evidence = retrieve(context, request.questions);
-      const prompt = JSON.stringify({ task: 'Fill only pending_questions using this evidence.', runId: request.runId, snapshotId: request.snapshotId, pending_questions: request.questions, evidence, job: String(payload.job ?? '').slice(0, 3000) });
+      const prompt = JSON.stringify({ task: 'Fill only pending_questions using direct evidence or the best-supported inference from related evidence.', inference_policy: INFERENCE_POLICY, runId: request.runId, snapshotId: request.snapshotId, pending_questions: request.questions, evidence, job: String(payload.job ?? '').slice(0, 3000) });
       result = validateAnswer(await client.turn(prompt, answerSchema), request, evidence);
     } else throw new Error('Unknown companion operation.');
     if (generation !== currentGeneration) throw new Error('Operation cancelled.');
