@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { readFile, writeFile } from 'node:fs/promises';
 import { CodexClient } from './codex.mjs';
+import { resolveCodex } from './resolve-codex.mjs';
 import { MessageDecoder, encodeMessage } from './framing.mjs';
 import { loadContext, verifyContext, retrieve } from './context.mjs';
 import { healthSchema, answerSchema, validateAnswer, filterQuestions } from './contract.mjs';
@@ -35,7 +36,7 @@ async function handle(message) {
       client?.close(); context = null; lastHealth = 0;
       write({ event: 'progress', stage: 1, message: 'Reading local knowledge' });
       context = await loadContext(payload.contextRoot);
-      client = new CodexClient({ executable: payload.codexPath, home, clientVersion, onProgress: () => {} });
+      client = new CodexClient({ executable: await resolveCodex(), home, clientVersion, onProgress: () => {} });
       let saved;
       try { saved = JSON.parse(await readFile(sessionPath, 'utf8')); } catch { /* First connection. */ }
       const resume = saved?.fingerprint === context.fingerprint && saved?.application === payload.application && saved?.root === context.root ? saved.threadId : null;

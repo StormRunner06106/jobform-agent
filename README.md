@@ -19,7 +19,7 @@ A Chrome side panel that uses a local Codex companion and selected Markdown/text
    ./scripts/login-codex.ps1 -CodexPath 'C:\path\to\codex.exe'
    ```
 
-6. Open a job page and click the extension toolbar button. Enter the absolute knowledge-folder and Codex executable paths. Grant site access for the page/frames, then click **Load knowledge**.
+6. Open a job page and click the extension toolbar button. Enter the absolute knowledge-folder path. Codex is detected automatically: the companion checks the current user's VS Code and VS Code Insiders Codex extensions (newest first within each editor), then PATH for `codex.exe`. Grant site access for the page/frames, then click **Load knowledge**.
 7. Select the application form if several regions exist, inspect the questions, and click **Run autofill**. Review every answer and submit yourself.
 
 Use `Get-Command codex` to locate an executable already on PATH. For a portable Node installation, pass its full path to the installer and invoke that executable in place of `node`. Do not move the checkout after host registration without running the installer again. Reload the unpacked extension after rebuilding.

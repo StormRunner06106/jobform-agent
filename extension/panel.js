@@ -33,7 +33,7 @@ function render(state) {
   if (state.summary && !state.running && state.summary !== shownSummary) { shownSummary = state.summary; $('finalTitle').textContent = state.message; $('finalMessage').textContent = state.summary; $('finalizer').showModal(); }
 }
 function action(id, handler) { $(id).addEventListener('click', () => handler().catch(e => { $('status').textContent = e.message; })); }
-action('load', async () => { const settings = { contextRoot: $('contextRoot').value.trim(), codexPath: $('codexPath').value.trim() }; await chrome.storage.local.set({ settings }); render(await send('load', { settings })); });
+action('load', async () => { const settings = { contextRoot: $('contextRoot').value.trim() }; await chrome.storage.local.set({ settings }); render(await send('load', { settings })); });
 action('access', async () => { if (!accessOrigins.length) throw new Error('Open an application page first.'); if (await chrome.permissions.request({ origins: accessOrigins })) $('status').textContent = 'Site access granted. Load or rescan the page.'; });
 action('scan', async () => render(await send('scan')));
 action('run', async () => { shownSummary = null; render(await send('run')); });
@@ -45,7 +45,7 @@ chrome.runtime.onMessage.addListener(message => { if (message.type === 'state') 
 $('extensionId').textContent = chrome.runtime.id;
 $('version').textContent = chrome.runtime.getManifest().version_name;
 const saved = await chrome.storage.local.get('settings');
-if (saved.settings) { $('contextRoot').value = saved.settings.contextRoot ?? ''; $('codexPath').value = saved.settings.codexPath ?? ''; }
+if (saved.settings) { $('contextRoot').value = saved.settings.contextRoot ?? ''; }
 send('getState').then(render).catch(e => { $('status').textContent = e.message; });
 async function refreshOrigins() { try { accessOrigins = await send('origins'); $('access').disabled = !accessOrigins.length; } catch { accessOrigins = []; $('access').disabled = true; } }
 void refreshOrigins();

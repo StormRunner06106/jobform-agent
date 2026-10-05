@@ -60,7 +60,7 @@ If no questions need generation, skip the Codex turn and proceed to final checks
 
 ### 1. Connector and Health Checker
 
-- Resolve the installed Codex executable and create or resume an application thread through app-server.
+- Automatically resolve the installed Codex executable from PATH or the user's VS Code Codex extension; no executable-path field is needed in the drawer. Create or resume an application thread through app-server.
 - Send the exact test prompt **“hi, are you healthy now?”** with a health-only instruction and a structured acknowledgement.
 - Report `code: 200, status: good` only after the matching turn completes successfully and its response validates. This is the companion's status code; Codex stdio does not return HTTP 200.
 - Validate the knowledge folder and load selected evidence. Display **Agent healthy** and **Context ready** separately; both are required for Run.
