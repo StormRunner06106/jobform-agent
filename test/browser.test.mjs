@@ -57,7 +57,7 @@ test('side-panel UI renders in Chrome without console exceptions', async t => {
   await b.call('Emulation.setDeviceMetricsOverride', { width: 420, height: 1050, deviceScaleFactor: 1, mobile: false });
   await b.call('Page.navigate', { url: pathToFileURL(resolve(ROOT, 'extension/panel.html')).href });
   for (let i = 0; i < 30; i++) {
-    if (await b.evaluate('document.querySelector("#extensionId")?.textContent.length > 0')) break;
+    if (await b.evaluate('document.querySelector("#version")?.textContent.length > 0')) break;
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   assert.deepEqual(await b.evaluate('window.panelErrors'), []);

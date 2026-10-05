@@ -6,11 +6,11 @@ A Chrome side panel that uses a local Codex companion and selected Markdown/text
 
 1. Use Node.js 22 or newer and an installed Codex executable. There are no npm dependencies.
 2. Run `node scripts/check.mjs`, `node --test test/*.test.mjs`, and `node scripts/build.mjs`.
-3. Open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose `dist/extension`. Copy its extension ID.
-4. Register the companion for that ID:
+3. Open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose `dist/extension`.
+4. Register the companion once. The installer detects this checkout's extension ID from Chrome or reuses the saved registration:
 
    ```powershell
-   ./scripts/install-host.ps1 -ExtensionId YOUR_EXTENSION_ID -NodePath 'C:\path\to\node.exe'
+   ./scripts/install-host.ps1
    ```
 
 5. Sign in once to the companion's isolated Codex profile:
@@ -22,7 +22,9 @@ A Chrome side panel that uses a local Codex companion and selected Markdown/text
 6. Open a job page and click the extension toolbar button. Enter the absolute knowledge-folder path. Codex is detected automatically: the companion checks the current user's VS Code and VS Code Insiders Codex extensions (newest first within each editor), then PATH for `codex.exe`. Grant site access for the page/frames, then click **Load knowledge**.
 7. Select the application form if several regions exist, inspect the questions, and click **Run autofill**. Review every answer and submit yourself.
 
-Use `Get-Command codex` to locate an executable already on PATH. For a portable Node installation, pass its full path to the installer and invoke that executable in place of `node`. Do not move the checkout after host registration without running the installer again. Reload the unpacked extension after rebuilding.
+Use `Get-Command codex` to locate an executable already on PATH. Node is detected from PATH or the standard per-user installation folder. For a portable Node installation, pass `-NodePath 'C:\path\to\node.exe'` to the installer and invoke that executable in place of `node`. For a custom Chrome profile location, pass `-ExtensionId YOUR_EXTENSION_ID` once; the registration is saved.
+
+After changes, rebuild and click **Reload** at `chrome://extensions`. **Do not rerun installation or enter the extension ID on normal reloads.** Keep loading the same `dist/extension` folder. If you move the checkout or change the loaded extension, rerun the installer to update registration.
 
 The companion is registered only for this extension ID under the current Windows user. Remove registration with `./scripts/install-host.ps1 -Uninstall`; local login/history files remain in `%LOCALAPPDATA%\jobform-agent`.
 

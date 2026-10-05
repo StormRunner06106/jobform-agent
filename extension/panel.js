@@ -42,7 +42,6 @@ $('region').addEventListener('change', () => send('selectRegion', { id: $('regio
 $('closeFinal').addEventListener('click', () => $('finalizer').close());
 document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => { filter = button.dataset.filter; document.querySelectorAll('[data-filter]').forEach(b => b.setAttribute('aria-pressed', String(b === button))); if (latest) render(latest); }));
 chrome.runtime.onMessage.addListener(message => { if (message.type === 'state') render(message.state); });
-$('extensionId').textContent = chrome.runtime.id;
 $('version').textContent = chrome.runtime.getManifest().version_name;
 const saved = await chrome.storage.local.get('settings');
 if (saved.settings) { $('contextRoot').value = saved.settings.contextRoot ?? ''; }
