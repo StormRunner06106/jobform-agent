@@ -24,7 +24,7 @@ A Chrome side panel that uses a local Codex companion and selected Markdown/text
 
 Use `Get-Command codex` to locate an executable already on PATH. Node is detected from PATH or the standard per-user installation folder. For a portable Node installation, pass `-NodePath 'C:\path\to\node.exe'` to the installer and invoke that executable in place of `node`. For a custom Chrome profile location, pass `-ExtensionId YOUR_EXTENSION_ID` once; the registration is saved.
 
-After changes, rebuild and click **Reload** at `chrome://extensions`. **Do not rerun installation or enter the extension ID on normal reloads.** Keep loading the same `dist/extension` folder. If you move the checkout or change the loaded extension, rerun the installer to update registration.
+After changes, rebuild and click **Reload** at `chrome://extensions`, then reopen the panel on your job page and click **Load knowledge** to reconnect. The initial **Agent not connected yet** badge is expected until Load is clicked. **Do not rerun installation or enter the extension ID on normal reloads.** Keep loading the same `dist/extension` folder. If you move the checkout or change the loaded extension, rerun the installer to update registration.
 
 The companion is registered only for this extension ID under the current Windows user. Remove registration with `./scripts/install-host.ps1 -Uninstall`; local login/history files remain in `%LOCALAPPDATA%\jobform-agent`.
 

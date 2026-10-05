@@ -2,7 +2,7 @@ const HOST = 'com.jobform.agent';
 let native, boundTab, busy = false, epoch = 0, selectedRegion, application;
 let snapshots = [], sequence = 0;
 const pending = new Map();
-const state = { connected: false, contextReady: false, running: false, stage: 0, message: 'Select a knowledge folder and connect Codex.', questions: [], regions: [], audit: [], blockedFrames: 0, summary: null };
+const state = { connected: false, connectionStatus: 'idle', contextReady: false, running: false, stage: 0, message: 'Open a job page, select your knowledge folder, and click Load knowledge to connect.', questions: [], regions: [], audit: [], blockedFrames: 0, summary: null };
 const broadcast = () => chrome.runtime.sendMessage({ type: 'state', state }).catch(() => {});
 function update(patch) { Object.assign(state, patch); broadcast(); }
 function audit(label, status, reason = '') {
@@ -22,7 +22,7 @@ function connectNative() {
     const reason = chrome.runtime.lastError?.message ?? 'Companion disconnected.';
     native = null; epoch++;
     for (const call of pending.values()) { clearTimeout(call.timer); call.reject(new Error(reason)); }
-    pending.clear(); update({ connected: false, contextReady: false, running: false, message: reason });
+    pending.clear(); update({ connected: false, connectionStatus: 'error', contextReady: false, running: false, message: `${reason} Click Load knowledge to reconnect.` });
   });
 }
 function callHost(type, payload = {}) {
@@ -143,10 +143,16 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     try {
       if (message.type === 'load') {
         const tab = await activeTab(); boundTab = tab.id; application = getApplication(tab.url); selectedRegion = null;
-        update({ connected: false, contextReady: false, stage: 1, message: 'Connecting to Codex', summary: null });
-        const result = await callHost('load', { ...message.settings, application });
-        if (result.code !== 200) throw new Error('Health check failed.');
-        update({ connected: true, contextReady: true, message: `Connected · ${result.documents} knowledge files`, context: result });
+        update({ connected: false, connectionStatus: 'connecting', contextReady: false, stage: 1, message: 'Connecting to Codex', summary: null });
+        let result;
+        try {
+          result = await callHost('load', { ...message.settings, application });
+          if (result.code !== 200) throw new Error('Health check failed.');
+        } catch (error) {
+          update({ connectionStatus: 'error' });
+          throw new Error(`Connection failed: ${error.message} Click Load knowledge to retry.`);
+        }
+        update({ connected: true, connectionStatus: 'connected', contextReady: true, message: `Connected · ${result.documents} knowledge files`, context: result });
         await stableScan();
       } else if (message.type === 'scan') { await scan(); }
       else if (message.type === 'selectRegion') { selectedRegion = message.id; await scan(); }

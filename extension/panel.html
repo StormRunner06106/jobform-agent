@@ -8,9 +8,9 @@
       <label for="contextRoot">Knowledge folder</label><input id="contextRoot" placeholder="C:\Users\Alex\Knowledge" autocomplete="off">
       <p class="hint">Markdown and text files. Selected excerpts are sent to your Codex provider.</p>
       <div class="row"><button id="load" class="primary">Load knowledge</button><button id="access" disabled>Grant site access</button></div>
-      <p id="setupHelp" class="hint">Companion setup and sign-in are needed only once. Reloading the extension keeps your registration.</p>
+      <p id="setupHelp" class="hint">Click Load knowledge to connect. After reloading the extension, click it again; your saved settings and companion registration are kept.</p>
     </details>
-    <div class="badges"><span id="agentBadge">Agent disconnected</span><span id="contextBadge">Context not loaded</span></div>
+    <div class="badges"><span id="agentBadge">Agent not connected yet</span><span id="contextBadge">Context not loaded</span></div>
     <section aria-label="Pipeline"><div class="sectionTitle"><h2>Application pipeline</h2><button id="scan" class="link">Rescan</button></div>
       <ol class="pipeline">
         <li data-stage="1"><span class="step">1</span><div><strong>Connector &amp; Health Checker</strong><small>Connect a reusable Codex session</small></div><span class="stageStatus">Waiting</span></li>
