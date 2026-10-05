@@ -25,7 +25,7 @@ test('real Chrome scanner preserves answers, fills groups, verifies and never su
   assert.equal(first.questions.filter(q => q.label === 'Location').length, 1);
   assert.equal(first.questions.find(q => q.label === 'Essay').minLength, 3001);
   assert.equal(first.questions.find(q => q.kind === 'upload').state, 'needs-user');
-  assert.equal(first.questions.find(q => q.label === 'Optional updates').state, 'complete');
+  assert.equal(first.questions.find(q => q.label === 'Optional updates').state, 'optional');
   assert.equal(first.questions.find(q => q.label === 'I agree to the terms').state, 'complete');
   const email = first.questions.find(q => q.label === 'Email');
   const location = first.questions.find(q => q.label === 'Location');
@@ -97,6 +97,32 @@ test('Ashby div layouts include sibling sections and custom questions without tr
   assert.equal(await b.evaluate('Boolean(window.submitted)'), false);
 });
 
+test('delayed checkbox reversion and partial selections remain retryable until the full answer is retained', async t => {
+  const b = await browser(t); if (!b) return;
+  await b.html(`<!doctype html><title>Job application</title><form>
+    <fieldset class="ashby-application-form-input-checkbox-group"><legend>Skills</legend>
+      <label><input id="first" type="checkbox">First</label>
+      <label><input id="second" type="checkbox" onchange="if(!window.rejected){window.rejected=true;setTimeout(()=>this.checked=false,350)}">Second</label>
+    </fieldset><label><input id="optional" type="checkbox">Optional updates</label>
+    <label><input type="checkbox">I agree to the terms</label></form>`);
+  await b.evaluate(await readFile(resolve(ROOT, 'extension/scanner.js'), 'utf8'));
+  const initial = await b.evaluate('jobformScanner.scan()');
+  assert.equal(initial.questions.find(q => q.label === 'Optional updates').completion, 'Optional · unchecked');
+  assert.equal(initial.questions.find(q => q.label === 'I agree to the terms').state, 'needs-user');
+  const q = initial.questions.find(q => q.kind === 'many');
+  const answers = [{ id: q.id, disposition: 'fill', value: q.options.map(o => o.id) }];
+  const first = await b.evaluate(`jobformScanner.apply(${JSON.stringify(answers)})`);
+  assert.equal(first[0].state, 'retry-pending');
+  const partial = await b.evaluate('jobformScanner.scan()');
+  assert.deepEqual(partial.questions[0].currentValue, [true, false]);
+  assert.equal(partial.questions[0].state, 'pending');
+  assert.match(partial.questions[0].feedback, /full answer/);
+  assert.equal((await b.evaluate(`jobformScanner.apply(${JSON.stringify(answers)})`))[0].state, 'filled');
+  assert.equal((await b.evaluate('jobformScanner.scan()')).questions[0].completion, 'Filled and verified on page');
+  await b.evaluate('document.querySelector("#second").checked = false');
+  assert.equal((await b.evaluate('jobformScanner.scan()')).questions[0].state, 'pending');
+});
+
 test('side-panel UI renders in Chrome without console exceptions', async t => {
   const b = await browser(t); if (!b) return;
   const initial = { connected: false, contextReady: false, running: false, stage: 0, message: 'Choose your knowledge folder to get started.', questions: [], regions: [], audit: [], blockedFrames: 0, summary: null };
@@ -131,6 +157,14 @@ test('side-panel UI renders in Chrome without console exceptions', async t => {
   }
   assert.match(await b.evaluate('document.querySelector("#diagnosticOutput").textContent'), /ui.click load/);
   assert.doesNotMatch(await b.evaluate('document.querySelector("#diagnosticOutput").textContent'), /C:\/Knowledge/);
+  const complete = { ...initial, questions: [{ id: 'choice', label: 'Choice', state: 'complete', completion: 'Filled and verified on page' }, { id: 'optional', label: 'Updates', state: 'optional', completion: 'Optional · unchecked' }], summary: 'Review the form.' };
+  await b.evaluate('window.onPanelState(' + JSON.stringify({ type: 'state', state: complete }) + ')');
+  assert.equal(await b.evaluate('document.querySelector("#count").textContent'), '1 / 2');
+  assert.equal(await b.evaluate('document.querySelector("#finalizer").open'), true);
+  assert.match(await b.evaluate('document.querySelector("#questions").textContent'), /Optional · unchecked/);
+  await b.evaluate('window.onPanelState(' + JSON.stringify({ type: 'state', state: { ...complete, questions: complete.questions.map(q => q.id === 'choice' ? { ...q, state: 'pending', completion: '' } : q), summary: null } }) + ')');
+  assert.equal(await b.evaluate('document.querySelector("#count").textContent'), '0 / 2');
+  assert.equal(await b.evaluate('document.querySelector("#finalizer").open'), false);
   await mkdir(resolve(ROOT, 'dist'), { recursive: true });
   const screenshot = await b.call('Page.captureScreenshot', { format: 'png' });
   await writeFile(resolve(ROOT, 'dist/panel-preview.png'), Buffer.from(screenshot.data, 'base64'));

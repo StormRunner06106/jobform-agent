@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 
 function Application() {
   const [data, setData] = useState({ name: 'Keep My Name', email: '', linkedin: '', java: '', split: '', sponsorship: null, sources: [], remote: false, country: '', languages: [], intro: '', start: '', gender: '', preservedRadio: 'Keep this choice', preservedChecks: ['Keep this selection'] });
   window.benchmarkState = data;
+  window.benchmarkPatch = patch => setData(old => ({ ...old, ...patch }));
+  const rejected = useRef(false);
+  useEffect(() => {
+    if (!rejected.current && data.sources.length === 2) {
+      rejected.current = true;
+      // Reproduce a framework/validation rollback after the former 150 ms verification.
+      setTimeout(() => setData(old => ({ ...old, sources: [old.sources[0]] })), 350);
+    }
+  }, [data.sources]);
   const set = (key, value) => setData(old => ({ ...old, [key]: value }));
   const field = (key, title, type = 'text') => <div className="ashby-application-form-field-entry"><label className="ashby-application-form-question-title _required_fixture" htmlFor={key}>{title}</label><input id={key} name={key} type={type} required value={data[key]} onChange={e => set(key, e.target.value)} /></div>;
   const radios = (key, title, choices, required = true) => <fieldset id={`${key}-group`}><label className={`ashby-application-form-question-title ${required ? '_required_fixture' : ''}`}>{title}</label>{choices.map(choice => <label key={choice}><input type="radio" name={key} value={choice} required={required} checked={data[key] === choice} onChange={() => set(key, choice)} />{choice}</label>)}</fieldset>;

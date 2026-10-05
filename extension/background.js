@@ -3,7 +3,7 @@ const diagnostics = createDiagnostics('extension');
 const HOST = 'com.jobform.agent';
 diagnostics.log('worker.started', { extensionId: chrome.runtime.id });
 let native, boundTab, busy = false, epoch = 0, selectedRegion, application;
-let snapshots = [], sequence = 0;
+let snapshots = [], sequence = 0, refreshTask;
 const pending = new Map();
 const state = { connected: false, connectionStatus: 'idle', contextReady: false, running: false, stage: 0, message: 'Open a job page, select your knowledge folder, and click Load knowledge to connect.', questions: [], regions: [], audit: [], blockedFrames: 0, summary: null };
 const broadcast = () => chrome.runtime.sendMessage({ type: 'state', state }).catch(() => {});
@@ -59,8 +59,9 @@ async function pageCall(frameId, method, argument) {
   const value = results[0].result;
   return Array.isArray(value) ? { outcomes: value } : { ...value, frameId, documentId: results[0].documentId };
 }
-async function scan() {
-  diagnostics.log('scan.started');
+async function scan({ live = false } = {}) {
+  const previous = JSON.stringify([state.questions, state.regions, state.blockedFrames]);
+  if (!live) diagnostics.log('scan.started');
   const tab = await chrome.tabs.get(boundTab);
   if (getApplication(tab.url) !== application) throw new Error('Page changed. Click Load for this application.');
   const frames = await chrome.webNavigation.getAllFrames({ tabId: boundTab });
@@ -69,7 +70,7 @@ async function scan() {
     try {
       await chrome.scripting.executeScript({ target: { tabId: boundTab, frameIds: [frame.frameId] }, files: ['scanner.js'] });
       const snapshot = await pageCall(frame.frameId, 'scan', selectedRegion);
-      diagnostics.log('scan.frame_completed', { frameId: frame.frameId, regions: snapshot.regions.length, questions: snapshot.questions.length });
+      if (!live) diagnostics.log('scan.frame_completed', { frameId: frame.frameId, regions: snapshot.regions.length, questions: snapshot.questions.length });
       snapshots.push(snapshot);
     } catch (error) { blocked++; diagnostics.log('scan.frame_failed', { frameId: frame.frameId, error: errorCode(error) }, 'error'); }
   }
@@ -77,8 +78,17 @@ async function scan() {
   if (!selectedRegion && regions.length === 1) selectedRegion = regions[0].id;
   const relevant = snapshots.filter(s => s.regionId === selectedRegion);
   const questions = relevant.flatMap(s => s.questions.map(q => ({ ...q, frameId: s.frameId, documentId: s.documentId })));
-  diagnostics.log('scan.completed', { frames: snapshots.length, blockedFrames: blocked, regions: regions.length, questions: questions.length });
-  update({ stage: 2, regions, questions, blockedFrames: blocked, selectedRegion, message: !regions.length ? 'No form found. Check site access or wait for the page to load.' : regions.length > 1 && !selectedRegion ? 'Choose the application form below.' : `${questions.filter(q => q.state === 'complete').length} of ${questions.length} questions already complete.` });
+  const changed = previous !== JSON.stringify([questions, regions, blocked]);
+  if (!live || changed) {
+    diagnostics.log(live ? 'scan.live_changed' : 'scan.completed', { frames: snapshots.length, blockedFrames: blocked, regions: regions.length, questions: questions.length });
+    const patch = { regions, questions, blockedFrames: blocked, selectedRegion };
+    for (const q of questions) {
+      if (q.state !== 'complete' && state.questions.some(old => old.id === q.id && old.state === 'complete')) audit(q.label, 'verification-lost', q.feedback || 'Answer changed on the page.');
+    }
+    if (changed && state.summary) patch.summary = null;
+    if (!live || !state.running) Object.assign(patch, { stage: live ? state.stage : 2, message: !regions.length ? 'No form found. Check site access or wait for the page to load.' : regions.length > 1 && !selectedRegion ? 'Choose the application form below.' : `${questions.filter(q => q.state === 'complete').length} of ${questions.length} questions filled${questions.some(q => q.state === 'optional') ? ' · optional unchecked items listed below' : ''}.${live ? ' Synced with page.' : ''}` });
+    update(patch);
+  }
   return relevant;
 }
 async function stableScan() {
@@ -125,18 +135,20 @@ async function run() {
         update({ message: `Filling ${q.label}` });
         const outcome = await pageCall(q.frameId, 'apply', [result]);
         for (const row of outcome.outcomes) audit(q.label, row.state, [row.reason, result.reason].filter(Boolean).join(' · '));
+        await scan({ live: true }); guard();
       }
       update({ stage: 4, message: 'Checking the form after filling' });
     }
     await stableScan(); guard();
-    const blockers = state.questions.filter(q => q.state !== 'complete');
+    const blockers = state.questions.filter(q => !['complete', 'optional'].includes(q.state));
     if (blockers.length || state.blockedFrames) {
       update({ stage: 4, message: 'Needs attention', summary: `${blockers.length} questions need review. Uploads, consent and unsupported controls remain manual.` });
     } else {
       const snapshot = snapshots.find(s => s.regionId === selectedRegion);
       if (!snapshot || !state.questions.length) throw new Error('No verified form to finalize.');
       const result = await pageCall(snapshot.frameId, 'finish', selectedRegion);
-      update({ stage: 4, message: result.target === 'next' ? 'Current step complete' : 'Form complete — review before submitting', summary: result.target === 'unknown' ? 'All detected questions are complete. Review and locate Submit on the page.' : 'Review your answers. The extension has not submitted the application.' });
+      const optional = state.questions.filter(q => q.state === 'optional').length;
+      update({ stage: 4, message: result.target === 'next' ? 'Current step complete' : 'Form complete — review before submitting', summary: `${optional ? `${optional} optional checkbox(es) remain unchecked. ` : ''}${result.target === 'unknown' ? 'Review your answers and locate Submit on the page.' : 'Review your answers. The extension has not submitted the application.'}` });
     }
   } finally { update({ running: false }); }
 }
@@ -145,15 +157,24 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   // Only the extension's own panel may start privileged operations.
   if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('panel.html')) return;
   const operationStarted = Date.now();
-  diagnostics.log('panel.request', { operation: message.type });
+  if (message.type !== 'refresh') diagnostics.log('panel.request', { operation: message.type });
   (async () => {
     if (message.type === 'getState') return state;
+    // Read-only polling from an open panel keeps completion tied to the live page.
+    // Never race a load/run or start another model turn from this refresh.
+    if (message.type === 'refresh') {
+      if (busy || !boundTab || !state.contextReady) return state;
+      if (!refreshTask) refreshTask = scan({ live: true }).catch(error => { update({ questions: [], regions: [], summary: null, message: `Cannot verify the page: ${error.message}` }); }).finally(() => { refreshTask = null; });
+      await refreshTask;
+      return state;
+    }
     if (message.type === 'origins') {
       const tab = await activeTab();
       const frames = await chrome.webNavigation.getAllFrames({ tabId: tab.id });
       return [...new Set([tab.url, ...(frames ?? []).map(f => f.url)].filter(u => /^https?:/.test(u)).map(u => new URL(u).origin + '/*'))];
     }
     if (message.type === 'stop') { epoch++; await callHost('cancel').catch(() => {}); update({ running: false, message: 'Stopped. Existing answers are preserved.' }); return state; }
+    if (refreshTask) await refreshTask;
     if (busy) throw new Error('An operation is already running.');
     busy = true; update({ processing: true });
     try {
@@ -176,6 +197,6 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       else throw new Error('Unknown operation.');
       return state;
     } finally { busy = false; update({ processing: false }); }
-  })().then(result => { diagnostics.log('panel.completed', { operation: message.type, elapsedMs: Date.now() - operationStarted }); respond({ ok: true, result }); }).catch(error => { diagnostics.log('panel.failed', { operation: message.type, error: errorCode(error), errorType: error.name, elapsedMs: Date.now() - operationStarted }, 'error'); update({ message: error.message }); respond({ ok: false, error: error.message }); });
+  })().then(result => { if (message.type !== 'refresh') diagnostics.log('panel.completed', { operation: message.type, elapsedMs: Date.now() - operationStarted }); respond({ ok: true, result }); }).catch(error => { diagnostics.log('panel.failed', { operation: message.type, error: errorCode(error), errorType: error.name, elapsedMs: Date.now() - operationStarted }, 'error'); update({ message: error.message }); respond({ ok: false, error: error.message }); });
   return true;
 });

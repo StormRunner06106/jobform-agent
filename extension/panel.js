@@ -30,12 +30,13 @@ function render(state) {
   const questions = state.questions.filter(q => filter === 'all' || (filter === 'complete' ? q.state === 'complete' : q.state !== 'complete'));
   for (const q of questions) {
     const li = document.createElement('li'), mark = document.createElement('span'), body = document.createElement('div'), strong = document.createElement('strong'), small = document.createElement('small');
-    mark.className = q.state === 'complete' ? 'mark' : 'mark attention'; mark.textContent = q.state === 'complete' ? '✓' : q.state === 'pending' ? '○' : '!';
-    strong.textContent = q.label; small.textContent = q.uploadState || q.feedback || (q.state === 'complete' ? 'Complete · preserved' : `${q.required ? 'Required · ' : ''}${q.state}`);
+    mark.className = ['complete', 'optional'].includes(q.state) ? 'mark' : 'mark attention'; mark.textContent = q.state === 'complete' ? '✓' : q.state === 'optional' ? '–' : q.state === 'pending' ? '○' : '!';
+    strong.textContent = q.label; small.textContent = q.uploadState || q.feedback || q.completion || (q.state === 'complete' ? 'Verified on page' : `${q.required ? 'Required · ' : ''}${q.state}`);
     body.append(strong, small); li.append(mark, body); $('questions').append(li);
   }
   if (!questions.length) { const empty = document.createElement('li'); empty.className = 'empty'; empty.textContent = 'No questions in this view.'; $('questions').append(empty); }
   $('audit').replaceChildren(...state.audit.map(e => { const li = document.createElement('li'); li.textContent = `${e.time} · ${e.label} · ${e.status}${e.reason ? ' — ' + e.reason : ''}`; return li; }));
+  if (!state.summary) { shownSummary = null; if ($('finalizer').open) $('finalizer').close(); }
   if (state.summary && !state.running && state.summary !== shownSummary) { shownSummary = state.summary; $('finalTitle').textContent = state.message; $('finalMessage').textContent = state.summary; $('finalizer').showModal(); }
 }
 function action(id, handler) { $(id).addEventListener('click', () => { diagnostics.log('ui.click', { operation: id }); handler().catch(e => { diagnostics.log('ui.failed', { operation: id, error: errorCode(e), errorType: e.name }, 'error'); $('diagnostics').open = true; $('status').textContent = e.message; }); }); }
@@ -52,6 +53,17 @@ $('version').textContent = chrome.runtime.getManifest().version_name;
 const saved = await chrome.storage.local.get('settings');
 if (saved.settings) { $('contextRoot').value = saved.settings.contextRoot ?? ''; }
 send('getState').then(render).catch(e => { $('status').textContent = e.message; });
+let refreshing = false;
+setInterval(async () => {
+  if (refreshing || !latest?.contextReady || latest.processing || latest.running) return;
+  refreshing = true;
+  try {
+    // Avoid routine polling noise in diagnostics; changed scans are logged by the worker.
+    const response = await chrome.runtime.sendMessage({ type: 'refresh' });
+    if (response?.ok) render(response.result);
+  } catch { /* Connection diagnostics and the next refresh handle worker restarts. */ }
+  finally { refreshing = false; }
+}, 1000);
 async function refreshOrigins() { try { accessOrigins = await send('origins'); $('access').disabled = !accessOrigins.length; } catch { accessOrigins = []; $('access').disabled = true; } }
 void refreshOrigins();
 window.addEventListener('focus', refreshOrigins);

@@ -90,7 +90,7 @@ Maintain a complete inventory locally:
 
 Mark satisfied questions with a check in the drawer. Preserve prefilled values, including invalid ones that need user correction. **Exclude prefilled question records and their values from agent requests.**
 
-Radio buttons are one question per group. Placeholder select options are incomplete; optional unchecked checkboxes can be valid. Distinguish resume states: absent, selected, uploading, uploaded, rejected, and unknown. A selected file alone does not prove upload success.
+Radio buttons are one question per group. Placeholder select options are incomplete; optional unchecked checkboxes are labeled separately, do not count as filled, and do not block finalization. Distinguish resume states: absent, selected, uploading, uploaded, rejected, and unknown. A selected file alone does not prove upload success.
 
 Send only unresolved eligible questions, relevant job text, source evidence, choices, and constraints. Preserve exact warnings: **“more than 3000 characters” means at least 3001**. Count generated text locally and flag contradictory requirements.
 
@@ -99,7 +99,7 @@ Send only unresolved eligible questions, relevant job text, source evidence, cho
 1. Wait for the final successful response and validate its schema, source references, allowed question IDs, and snapshot.
 2. Recheck live values before every write. Preserve anything the user changed while the agent was working; reject stale document/frame results.
 3. Apply text, radio, checkbox, and select values using tested setters and events. Choose exact options and set checkbox states explicitly.
-4. Read values back after the page reacts. Check validation errors and rescan controls revealed by earlier answers.
+4. Read values back after the page reacts. Check the entire requested selection, including every checkbox, rather than accepting any checked option as success. Check validation errors and rescan controls revealed by earlier answers.
 5. Stream per-question progress and audit results to the drawer.
 
 Automatically fill factual and narrative answers grounded in the knowledge folder. When an exact experience statement is absent, infer the closest supported answer from related projects, responsibilities and technologies, including backend/frontend emphasis and approximate skill self-ratings. Missing exact percentages alone must not cause **Needs user**. Cite sources and mark the explanation **Inferred:** in the activity log. No reasonable related basis, conflicting evidence, and missing exact personal/legal/sensitive facts remain **Needs user**. Uploads, CAPTCHA, and consent remain manual.
@@ -156,6 +156,8 @@ The Chrome side panel stays beside the form. Each stage expands to show its stat
 ```
 
 Before Run, show the detected region and preserved/pending counts. During filling, display generating, applying, verifying, and retry states. After completion, replace progress with the summary and finalizer popup. Count grouped controls as questions and update totals when conditional fields appear.
+
+Refresh the inventory after each fill, and poll the bound page every second while the panel is open and idle. Polling only reads the page; it never invokes the model or starts filling. If an answer reverts or changes, update its check immediately on the next scan, record verification loss, and dismiss the stale finalizer. Preserve trusted user edits even if they leave a required question unresolved.
 
 ## Local knowledge
 
